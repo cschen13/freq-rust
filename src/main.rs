@@ -6,12 +6,27 @@ Assumptions:
 -Entries in the frequency table are case-insensitive (or rather, all
  converted to lowercase).
 
--Numbers are words.
+-The program has only been tested properly with languages that 
+ distinguish words with spaces or other non-alphanumeric characters
+ that happen to be between them. For instance, this program won't 
+ work when testing with Chinese characters... words are not separated
+ with spaces, but they also aren't necessarily one character...
+
+-Numbers are not words. If they are sandwiched between alphabetic
+ characters, they are considered spaces between the two words
+ surrounding them.
 
 -Words with apostrophes are only words if the apostrophe appears as the
- second-to-last character (to cover contractions). If a contraction
- appears in the beginning or end of the word, it is removed and the 
- remainder of the word is added to the frequency table.
+ second-to-last character (to cover contractions and most singular 
+ possessives in English). If an apostrophe appears in the beginning or
+ end of the word, it is removed and the remainder of the word is added
+ to the frequency table. Uncleaned words with apostrophes in any 
+ other location are not considered words.
+
+ EXAMPLES: All of the following words map to jesse.
+    Jesse
+    'jesse
+    'Jesse'
 
 -'a' and 'i' are the only one-letter words that will be recorded.
  Effectively, this means acronymns that are denoted with periods 
@@ -39,16 +54,16 @@ fn read_words<R: Read>(reader: R, mut map: &mut CountTable) {
     let mut lines = BufReader::new(reader).lines();
 
     while let Some(Ok(line)) = lines.next() {
-        // if let Ok(unclean_line) = line.parse::<String>() {
-        //     let words: Vec<&str> = unclean_line.split(' ').collect();
         if let Ok(unclean_line) = line.parse::<String>() {
-            //Initial "Filter": Separate the line into string slices by non-alphanumeric characters that AREN'T apostrophes.
-            let words: Vec<&str> = unclean_line.splitn(unclean_line.len() + 1, |c: char| !(c.is_alphanumeric()) && c != '\'').collect();
+            //Initial "Filter": Separate the line into string slices by
+            //non-alphanumeric characters that AREN'T apostrophes.
+            let words: Vec<&str> = unclean_line.splitn(unclean_line.len() + 1, |c: char| !(c.is_alphabetic()) && c != '\'').collect();
 
-            for mut word in words {
-                match clean_word(&mut word) {
+            for word in words {
+                match clean_word(word) {
                     Some(cleaned_word) => {
-                        increment_word(map, String::from(cleaned_word).to_lowercase());
+                        increment_word(map, String::from(cleaned_word)
+                            .to_lowercase());
                     }
                     None => {
                         continue;
@@ -59,36 +74,70 @@ fn read_words<R: Read>(reader: R, mut map: &mut CountTable) {
     }
 }
 
-fn clean_word(mut word: &str) -> Option<&str> {
+fn clean_word(word: &str) -> Option<&str> {
     if word.is_empty() {
         None
     }
     else {
-        // //word = word.to_lowercase();
-        // let chars: Vec<_> = word.char_indices().collect();
-        // //if chars.len() == 1 && chars[0].0 != 'a' && chars[0].0 != 'i' { None }
+        let chars: Vec<_> = word.char_indices().collect();
+        let char_count = chars.len();
 
-        // let firstChar = false;
-        // let lastChar = false;
-        // let badApostrophe = false;
-        // let lastCharPosn = word.len() - 1;
-        // let secondLastCharPosn = word.len() - 2;
+        //if word is one character long, it had better be an 'a' or 'i'
+        if char_count == 1 {
+            if chars[0].1 != 'a' && chars[0].1 != 'i' { return None }
+            else {return Some(word)}
+        }
+
+        //apostrophe flags
+        let mut first_char = false;
+        let mut last_char = false;
+
+        let last_char_posn = chars[char_count - 1].0;
+        let second_last_char_posn = chars[char_count - 2].0;
          
-        // for char in chars {
-        //     if char.1 == '\'' {
-        //         match char.0 {
-        //             0 => { firstChar = true; },
-        //             secondLastCharPosn => { continue; },
-        //             lastCharPosn => {lastChar = true;},
-        //             _ => badApostrophe = true, //bad apostrophe
-        //         }
-        //     }
-        // }
+        //apostrophe heck that triggers flags
+        for char in chars {
+            if char.1 == '\'' {
+                if      char.0 == 0                     { first_char = true; }
+                else if char.0 == second_last_char_posn { continue; }
+                else if char.0 == last_char_posn        { last_char = true; }
+                //else case covers when apostrophe is in a place where it shouldn't be
+                else                                    { return None}
 
-        // if firstChar { word = word.split_at_mut(chars[1].0).1; }
-        // // if lastChar { (,word) = word.}
 
-        Some(word)
+                //This match below kept giving me "unreachable" errors,
+                //so I just went with the if-statements.
+                // match char.0 {
+                //     0 => { firstChar = true; },
+                //     secondLastCharPosn => { continue; },
+                //     lastCharPosn => {lastChar = true;},
+                //     _ => {return None}, //bad apostrophe
+                // }
+            }
+        }
+
+        //Not sure why I have to call the iterator again,
+        //but I can't compile without creating char_indices, so...
+        let char_indices: Vec<_> = word.char_indices().collect(); 
+        let mut cleaned_word = word.clone();
+
+        //Handling the apostrophe flags here...
+        if first_char && last_char { 
+            cleaned_word = cleaned_word.split_at(char_indices[last_char_posn].0).0;
+            cleaned_word = cleaned_word.split_at(char_indices[1].0).1;
+            if cleaned_word.len() == 0 {
+                return None //Edge case where word is simply two apostrophes
+            }
+        }
+        else if first_char {
+            cleaned_word = cleaned_word.split_at(char_indices[1].0).1;
+        }
+        else if last_char {
+            cleaned_word = cleaned_word.split_at(char_indices[last_char_posn].0).0;
+        }
+
+        //...and we should be clean!
+        Some(cleaned_word)
     }
 }
 
