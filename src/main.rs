@@ -28,9 +28,11 @@ Assumptions:
     'jesse
     'Jesse'
 
--'a' and 'i' are the only one-letter words that will be recorded.
- Effectively, this means acronymns that are denoted with periods 
- between each letter (U.S.A.) are also not recorded.
+-'a' and 'i' are the only one-letter words that will be intentionally
+ recorded. Effectively, this means acronymns that are denoted with 
+ periods between each letter (U.S.A.) are also NOT recorded. One way 
+ around this assumption is if there are apostrophes around the one 
+ non-'a' or non-'i' letter (so, 'w will be mapped to w, for instance).
 "]
 use std::io::{BufRead, BufReader, Read, stdin};
 
