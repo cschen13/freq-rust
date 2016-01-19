@@ -26,7 +26,7 @@ Assumptions:
  EXAMPLES: All of the following words map to jesse.
     Jesse
     'jesse
-    'Jesse'
+    'JESSE'
 
 -'a' and 'i' are the only one-letter words that will be intentionally
  recorded. Effectively, this means acronymns that are denoted with 
@@ -86,7 +86,7 @@ fn clean_word(word: &str) -> Option<&str> {
 
         //if word is one character long, it had better be an 'a' or 'i'
         if char_count == 1 {
-            if chars[0].1 != 'a' && chars[0].1 != 'i' { return None }
+            if chars[0].1.to_lowercase().next() != Some('a') && chars[0].1.to_lowercase().next() != Some('i') { return None } //FIX THIS
             else {return Some(word)}
         }
 
@@ -97,7 +97,7 @@ fn clean_word(word: &str) -> Option<&str> {
         let last_char_posn = chars[char_count - 1].0;
         let second_last_char_posn = chars[char_count - 2].0;
          
-        //apostrophe heck that triggers flags
+        //apostrophe check that triggers flags
         for char in chars {
             if char.1 == '\'' {
                 if      char.0 == 0                     { first_char = true; }
@@ -149,13 +149,16 @@ fn increment_word(mut map: &mut CountTable, word: String) {
 
 
 #[cfg(test)]
+//This module also tests clean_word functionality, since read_words
+//depends on clean_word to handle apostrophes and single-letter words
+//correctly.
 mod read_words_tests {
     use super::{CountTable, read_words};
     use std::io::{Read, Result};
 
     #[test]
     fn one_word_per_line() {
-        let input = StringReader::new("Hello  &&\nWorld".to_owned());
+        let input = StringReader::new("Hello\nWorld".to_owned());
         let mut under_test = CountTable::new();
         read_words(input, &mut under_test);
 
@@ -165,6 +168,65 @@ mod read_words_tests {
 
         assert_eq!(expected, under_test);
     }
+
+    #[test]
+    fn non_alphabetic() {
+        let input = StringReader::new(".....&&*(*&( \n    %$#@Ok!!43424!".to_owned());
+        let mut under_test = CountTable::new();
+        read_words(input, &mut under_test);
+
+        let mut expected = CountTable::new();
+        //Notice that Ok counts as a word, because non-alphabetic chars
+        //are simply seen as "spaces" or dividers between uncleaned words.
+        expected.insert("ok".to_owned(), 1); 
+        assert_eq!(expected, under_test);
+    }
+
+    #[test]
+    fn apostrophes() {
+        let input = StringReader::new("Jesse 'jesse' 'jesse JESSE' '' ''Jesse".to_owned());
+        let mut under_test = CountTable::new();
+        read_words(input, &mut under_test);
+
+        let mut expected = CountTable::new();
+        //Notice the last ''Jesse will not map to a word because
+        //there is an apostrophe that is not in the first, last, or
+        //second-to-last position in the word during cleaning.
+        expected.insert("jesse".to_owned(), 4);
+
+        assert_eq!(expected, under_test);
+    }
+
+    #[test]
+    fn acronymns() {
+        let input = StringReader::new("U.S.A.".to_owned());
+        let mut under_test = CountTable::new();
+        read_words(input, &mut under_test);
+
+        let mut expected = CountTable::new();
+        expected.insert("a".to_owned(), 1);
+
+        assert_eq!(expected, under_test);
+    }
+
+    #[test]
+    fn one_letter_words() {
+        let input = StringReader::new("a\ne\ni\n'o\n'u'".to_owned());
+        let mut under_test = CountTable::new();
+        read_words(input, &mut under_test);
+
+        let mut expected = CountTable::new();
+        expected.insert("a".to_owned(), 1);
+        expected.insert("i".to_owned(), 1);
+        expected.insert("o".to_owned(), 1);
+        expected.insert("u".to_owned(), 1);
+        //Notice that the letter e will not be inserted,
+        //but the words with a single-letter and an 
+        //apostrophe or two WILL be written in (like 'o and 'u').
+
+        assert_eq!(expected, under_test);
+    }
+
 
     struct StringReader {
         contents: Vec<u8>,
